@@ -11,11 +11,11 @@
 Alamofire 是 Swift 语言编写的 HTTP 网络库。
 
 - [特性](#特性)
-- [组件](#component-libraries)
-- [使用环境](#requirements)
-- [移植指南](#migration-guides)
-- [安装](#installation)
-- [使用](#usage)
+- [组件](#组件)
+- [使用环境](#使用环境)
+- [移植指南](#移植指南)
+- [安装](#安装)
+- [使用](#使用)
     - **简介 -** [发起请求](making-a-request), [响应回调](#response-handling), [响应验证](#response-validation), [响应缓存](#response-caching)
         - **HTTP -** [HTTP 方法](http-methods), [请求参数编码](#parameter-encoding), [HTTP Headers](#http-headers), [认证](#authentication)
         - **大量数据 -** [下载数据到文件](#downloading-data-to-a-file), [上传数据到服务器](#uploading-data-to-a-server)
@@ -27,9 +27,9 @@ Alamofire 是 Swift 语言编写的 HTTP 网络库。
         - **网络连接 -** [安全](#security), [网络可用性](#network-reachability)
 - [Open Radars](#open-radars)
 - [FAQ](#faq)
-- [致谢](#credits)
-- [捐款](#donations)
-- [证书](#license)
+- [致谢](#致谢)
+- [捐款](#捐款)
+- [证书](#证书)
 
 ## 特性
 
