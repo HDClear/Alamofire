@@ -33,18 +33,18 @@ Alamofire 是 Swift 语言编写的 HTTP 网络库。
 
 ## 特性
 
-- 链式的请求/响应方法调用
-- URL / JSON / plist 参数编码
-- 上传 File / Data / Stream / MultipartFormData
-- 通过 Request 或者 Resume Data 下载文件
-- Authentication with URLCredential
-- HTTP 响应验证
-- 上传下载的进度闭包
-- cURL Command Output
-- Dynamically Adapt and Retry Requests
-- TLS Certificate and Public Key Pinning
-- Network Reachability
-- Comprehensive Unit and Integration Test Coverage
+- [x] 链式的请求/响应方法调用
+- [x] URL / JSON / plist 参数编码
+- [x] 上传 File / Data / Stream / MultipartFormData
+- [x] 通过 Request 或者 Resume Data 下载文件
+- [x] Authentication with URLCredential
+- [x] HTTP 响应验证
+- [x] 上传下载的进度闭包
+- [x] cURL Command Output
+- [x] Dynamically Adapt and Retry Requests
+- [x] TLS Certificate and Public Key Pinning
+- [x] Network Reachability
+- [x] Comprehensive Unit and Integration Test Coverage
 
 ## 组件
 
