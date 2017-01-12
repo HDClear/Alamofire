@@ -12,7 +12,7 @@ Alamofire 是 Swift 语言编写的 HTTP 网络库。
 
 - [特性](#特性)
 - [组件](#组件)
-- [使用环境](#使用环境)
+- [环境需求](#环境需求)
 - [移植指南](#移植指南)
 - [安装](#安装)
 - [使用](#使用)
@@ -29,22 +29,22 @@ Alamofire 是 Swift 语言编写的 HTTP 网络库。
 - [FAQ](#faq)
 - [致谢](#致谢)
 - [捐款](#捐款)
-- [证书](#证书)
+- [开源协议](#开源协议)
 
 ## 特性
 
-- [x] 链式的请求/响应方法调用
-- [x] URL / JSON / plist 参数编码
+- [x] 链式请求 / 响应方法调用
+- [x] URL / JSON / plist 请求参数编码
 - [x] 上传 File / Data / Stream / MultipartFormData
-- [x] 通过 Request 或者 Resume Data 下载文件
-- [x] Authentication with URLCredential
+- [x] 文件下载和断点续传
+- [x] URLCredential 认证方式
 - [x] HTTP 响应验证
-- [x] 上传下载的进度闭包
-- [x] cURL Command Output
+- [x] 上传下载进度
+- [x] cURL 命令输出
 - [x] Dynamically Adapt and Retry Requests
 - [x] TLS Certificate and Public Key Pinning
-- [x] Network Reachability
-- [x] Comprehensive Unit and Integration Test Coverage
+- [x] 网络可用性
+- [x] 测试单元和集成测试
 
 ## 组件
 
@@ -53,7 +53,7 @@ Alamofire 是 Swift 语言编写的 HTTP 网络库。
 - [AlamofireImage](https://github.com/Alamofire/AlamofireImage) - 一个包含图片响应序列化, `UIImage` 和 `UIImageView` 的扩展，自定义图片过滤器，自动清理的内存缓存，基于优先级的图片下载的图片库。
 - [AlamofireNetworkActivityIndicator](https://github.com/Alamofire/AlamofireNetworkActivityIndicator) - 控制网络活动指示器的显示。允许用户配置延迟时间来延缓活动指示器的显示，同时也支持独立创建的 `URLSession` 实例对象。
 
-## Requirements
+## 环境需求
 
 - iOS 8.0+ / macOS 10.10+ / tvOS 9.0+ / watchOS 2.0+
 - Xcode 8.1+
@@ -61,9 +61,9 @@ Alamofire 是 Swift 语言编写的 HTTP 网络库。
 
 ## 移植指南
 
-- [Alamofire 4.0 Migration Guide](https://github.com/Alamofire/Alamofire/blob/master/Documentation/Alamofire%204.0%20Migration%20Guide.md)
-- [Alamofire 3.0 Migration Guide](https://github.com/Alamofire/Alamofire/blob/master/Documentation/Alamofire%203.0%20Migration%20Guide.md)
-- [Alamofire 2.0 Migration Guide](https://github.com/Alamofire/Alamofire/blob/master/Documentation/Alamofire%202.0%20Migration%20Guide.md)
+- [Alamofire 4.0 移植指南](https://github.com/Alamofire/Alamofire/blob/master/Documentation/Alamofire%204.0%20Migration%20Guide.md)
+- [Alamofire 3.0 移植指南](https://github.com/Alamofire/Alamofire/blob/master/Documentation/Alamofire%203.0%20Migration%20Guide.md)
+- [Alamofire 2.0 移植指南](https://github.com/Alamofire/Alamofire/blob/master/Documentation/Alamofire%202.0%20Migration%20Guide.md)
 
 ##安装
 
@@ -636,9 +636,129 @@ Alamofire 建立在 `URLSession` 和 URL 加载系统上。为了更好的使用
 **推荐阅读**
 
 - [URL 加载系统编程指南](https://developer.apple.com/library/mac/documentation/Cocoa/Conceptual/URLLoadingSystem/URLLoadingSystem.html)
-- [URLSession Class Reference](https://developer.apple.com/reference/foundation/nsurlsession)
-- [URLCache Class Reference](https://developer.apple.com/reference/foundation/urlcache)
-- [URLAuthenticationChallenge Class Reference](https://developer.apple.com/reference/foundation/urlauthenticationchallenge)
+- [URLSession 参考文档](https://developer.apple.com/reference/foundation/nsurlsession)
+- [URLCache 参考文档](https://developer.apple.com/reference/foundation/urlcache)
+- [URLAuthenticationChallenge 参考文档](https://developer.apple.com/reference/foundation/urlauthenticationchallenge)
+
+### 会话管理
+
+顶层的 Alamofire 接口例如 `Alamofire.request` 使用了默认的 `Alamofire.SessionManager` 会话管理对象发起网络请求。该会话管理对象默认使用了 `URLSessionConfiguration` 进行配置。
+
+因此下面两段代码的是等效的：
+
+```swift
+Alamofire.request("https://httpbin.org/get")
+```
+
+```swift
+let sessionManager = Alamofire.SessionManager.default
+sessionManager.request("https://httpbin.org/get")
+```
+
+您可以为应用创建会后台任务会话管理对象，临时会话管理对象，同时也可以修改默认的会话配置，比如默认的请求头 (`httpAdditionalHeaders`) 或者请求超时时间 (`timeoutIntervalForRequest`)。
+
+#### 创建默认配置会话管理对象
+
+```swift
+let configuration = URLSessionConfiguration.default
+let sessionManager = Alamofire.SessionManager(configuration: configuration)
+```
+
+#### 创建后台任务会话管理对象
+
+```swift
+let configuration = URLSessionConfiguration.background(withIdentifier: "com.example.app.background")
+let sessionManager = Alamofire.SessionManager(configuration: configuration)
+```
+#### 创建临时配置会话管理对象
+
+```swift
+let configuration = URLSessionConfiguration.ephemeral
+let sessionManager = Alamofire.SessionManager(configuration: configuration)
+```
+
+#### 修改会话配置
+
+```swift
+var defaultHeaders = Alamofire.SessionManager.default.defaultHTTPHeaders
+defaultHeaders["DNT"] = "1 (Do Not Track Enabled)"
+
+let configuration = URLSessionConfiguration.default
+configuration.httpAdditionalHeaders = defaultHeaders
+
+let sessionManager = Alamofire.SessionManager(configuration: configuration)
+```
+
+> **不**推荐使用这种方式修改 `Authorization` 和 `Content-Type` 等请求头信息。推荐使用 `Alamofire.request` 接口中的 `headers` 参数, `URLRequestConvertible` 和 `ParameterEncoding` 等方式修改请求头信息。
+
+### 会话代理
+
+Alamofire 的`会话管理对象`默认创建了一个`会话代理对象`来处理 `URLSession` 产生的各种代理回调事件。这些代理方法实现的功能能够应付绝大部分的使用场景并且为隐藏了复杂的内部调用为用户提供了简单的上层接口。然而，您仍有可能会因为各种各样的需求而重载这些代理方法的实现。
+
+#### 重载闭包
+
+第一种自定义 `SessionDelegate` 行为的方式是重载闭包。通过闭包您可以重载对应的 `SessionDelegate` 接口，并且其他接口的实现将保持不变。这让实现一个自定义的代理方法集合变得很容易。下面是一些可用的可重载的闭包： 
+
+```swift
+/// Overrides default behavior for URLSessionDelegate method `urlSession(_:didReceive:completionHandler:)`.
+open var sessionDidReceiveChallenge: ((URLSession, URLAuthenticationChallenge) -> (URLSession.AuthChallengeDisposition, URLCredential?))?
+
+/// Overrides default behavior for URLSessionDelegate method `urlSessionDidFinishEvents(forBackgroundURLSession:)`.
+open var sessionDidFinishEventsForBackgroundURLSession: ((URLSession) -> Void)?
+
+/// Overrides default behavior for URLSessionTaskDelegate method `urlSession(_:task:willPerformHTTPRedirection:newRequest:completionHandler:)`.
+open var taskWillPerformHTTPRedirection: ((URLSession, URLSessionTask, HTTPURLResponse, URLRequest) -> URLRequest?)?
+
+/// Overrides default behavior for URLSessionDataDelegate method `urlSession(_:dataTask:willCacheResponse:completionHandler:)`.
+open var dataTaskWillCacheResponse: ((URLSession, URLSessionDataTask, CachedURLResponse) -> CachedURLResponse?)?
+```
+
+下面的例子通过重载 `taskWillPerformHTTPRedirection` 闭包来避免请求重定向到`apple.com`的域名。
+
+```swift
+let sessionManager = Alamofire.SessionManager(configuration: URLSessionConfiguration.default)
+let delegate: Alamofire.SessionDelegate = sessionManager.delegate
+
+delegate.taskWillPerformHTTPRedirection = { session, task, response, request in
+    var finalRequest = request
+
+    if
+        let originalRequest = task.originalRequest,
+        let urlString = originalRequest.url?.urlString,
+        urlString.contains("apple.com")
+    {
+        finalRequest = originalRequest
+    }
+
+    return finalRequest
+}
+```
+
+#### 继承
+
+另一种重载 `SessionDelegate` 默认实现的方式是继承。通过继承您可以实现完全的自定义或者仍然使用默认实现仅为接口创建一个代理。通过为接口创建代理，您可以在调用接口默认实现的前后增加日志消息，派发通知等功能。下面的例子继承了 `SessionDelegate`，并且当发生重定向时打印消息日志。
+
+```swift
+class LoggingSessionDelegate: SessionDelegate {
+    override func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void)
+    {
+        print("URLSession will perform HTTP redirection to request: \(request)")
+
+        super.urlSession(
+            session,
+            task: task,
+            willPerformHTTPRedirection: response,
+            newRequest: request,
+            completionHandler: completionHandler
+        )
+    }
+}
+```
 
 ### 请求
 
@@ -670,8 +790,51 @@ Alamofire.request(url, method: .post)
 let urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: true)
 Alamofire.request(.post, URLComponents)
 ```
-##### API 抽象参数
+与 web 服务器交互时推荐通过实现 `URLConvertible` 协议来做域名型模型与服务器资源的映射。
 
+##### 类型安全路由
+
+```swift
+extension User: URLConvertible {
+    static let baseURLString = "https://example.com"
+
+    func asURL() throws -> URL {
+      let urlString = User.baseURLString + "/users/\(username)/"
+        return try urlString.asURL()
+    }
+}
+```
+
+```swift
+let user = User(username: "mattt")
+Alamofire.request(user) // https://example.com/users/mattt
+```
+
+#### URLRequestConvertible
+
+实现了 `URLRequestConvertible` 协议的类型可以用来构造 URL 请求。`URLRequest` 默认实现了 `URLRequestConvertible` 协议，这使得 `URLRequest` 可直接传递给 `request`,`upload`,`download`等方法（推荐使用这种方式实现自定义 HTTP body）
+
+```swift
+let url = URL(string: "https://httpbin.org/post")!
+var urlRequest = URLRequest(url: url)
+urlRequest.httpMethod = "POST"
+
+let parameters = ["foo": "bar"]
+
+do {
+    urlRequest.httpBody = try JSONSerialization.data(withJSONObject: parameters, options: [])
+} catch {
+    // No-op
+}
+
+urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+Alamofire.request(urlRequest)
+```
+
+与 web 服务器交互时推荐通过实现 `URLRequestConvertible` 协议以确保请求端点的一致性。这种方法可以用于抽象出服务器端不一致并提供类型安全路由，以及管理认证凭证和其他状态
+
+##### API 抽象参数
 
 ```swift
 enum Router: URLRequestConvertible {
@@ -769,4 +932,28 @@ enum Router: URLRequestConvertible {
 Alamofire.request(Router.readUser("mattt")) // GET https://example.com/users/mattt
 ```
 
-* * * 
+##
+
+## FAQ
+
+### Alamofire 名字由来
+
+[Alamofire 花](https://aggie-horticulture.tamu.edu/wildseed/alamofire.html)，矢车菊的一种，是德克萨斯州的官方州花。
+
+### 请求路由和请求适配器的区别
+
+资源路径，请求参数，公共请求头这些静态数据属于 `路由` 范畴。`认证` 头这类会随着认证系统发生变化的动态数据属于 `请求适配器` 范畴。
+
+
+
+## 致谢
+
+Alamofire 由 [Alamofire 软件基金会](http://alamofire.org) 所有并维护。您可以通过关注我们的 Twitter 官方账号 [@AlamofireSF](https://twitter.com/AlamofireSF) 来获取最新的更新发布消息。
+
+## 捐款
+
+
+
+## 开源协议
+
+Alamofire 在 MIT 开源协议下发布。更多信息请查看 LICENSE 文件。
