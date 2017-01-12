@@ -10,7 +10,7 @@
 
 Alamofire 是 Swift 语言编写的 HTTP 网络库。
 
-- [特性](#features)
+- [特性](#特性)
 - [组件](#component-libraries)
 - [使用环境](#requirements)
 - [移植指南](#migration-guides)
