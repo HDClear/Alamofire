@@ -772,7 +772,7 @@ class LoggingSessionDelegate: SessionDelegate {
 - `resume()`: 恢复任务和派发队列。如果会话管理对象没有设置 `startRequestsImmediately` 为 `true`，那么请求需要调用 `resume()` 才能开始。
 - `cancel()`: 取消任务，产生错误信息并将错误信息传递到响应回调。
 
-### 路由请求
+### 请求路由
 
 随着 App 变得复杂，使用通用模式创建你自己的网络栈就变得非常重要了。其中一个重要的设计就是如何路由你的请求。遵循 `URLConvertible` 和 `URLRequestConvertible` 协议的 `Router` 就变得非常有用。
 
