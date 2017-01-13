@@ -1116,6 +1116,221 @@ sessionManager.request(urlString).validate().responseJSON { response in
 
 #### 错误处理
 
+过去在实现自定义响应序列化器或对象序列化方法时着重考虑的是错误信息的处理。这里有两个可选项：对错误信息不做任何处理直接向下传递，由用户在响应回调处处理；或者为您的应用定义一个包含所有错误类型的 `Error` 枚举类。
+
+下面的 `BackendError` 枚举类在后面的例子中也会出现：
+
+
+```swift
+enum BackendError: Error {
+    case network(error: Error) // Capture any underlying Error from the URLSession API
+    case dataSerialization(error: Error)
+    case jsonSerialization(error: Error)
+    case xmlSerialization(error: Error)
+    case objectSerialization(reason: String)
+}
+```
+
+#### 自定义响应序列化器
+
+Alamofire 为 strings，JSON，property lsits 提供了内置的响应序列化器，您也可以为 `Alamofire.DataRequest` 和 `Alamofire.DownloadRequest` 进行扩展。
+
+下面的例子展示了响应序列化器使用 [Ono](https://github.com/mattt/Ono) 的实现方式：
+
+```swift
+extension DataRequest {
+    static func xmlResponseSerializer() -> DataResponseSerializer<ONOXMLDocument> {
+        return DataResponseSerializer { request, response, data, error in
+            // Pass through any underlying URLSession error to the .network case.
+            guard error == nil else { return .failure(BackendError.network(error: error!)) }
+
+            // Use Alamofire's existing data serializer to extract the data, passing the error as nil, as it has
+            // already been handled.
+            let result = Request.serializeResponseData(response: response, data: data, error: nil)
+
+            guard case let .success(validData) = result else {
+                return .failure(BackendError.dataSerialization(error: result.error! as! AFError))
+            }
+
+            do {
+                let xml = try ONOXMLDocument(data: validData)
+                return .success(xml)
+            } catch {
+                return .failure(BackendError.xmlSerialization(error: error))
+            }
+        }
+    }
+
+    @discardableResult
+    func responseXMLDocument(
+        queue: DispatchQueue? = nil,
+        completionHandler: @escaping (DataResponse<ONOXMLDocument>) -> Void)
+        -> Self
+    {
+        return response(
+            queue: queue,
+            responseSerializer: DataRequest.xmlResponseSerializer(),
+            completionHandler: completionHandler
+        )
+    }
+}
+```
+
+#### 通用响应对象序列化
+
+通用序列化可以进行自动，类型安全的对象序列化。
+
+```swift
+protocol ResponseObjectSerializable {
+    init?(response: HTTPURLResponse, representation: Any)
+}
+
+extension DataRequest {
+    func responseObject<T: ResponseObjectSerializable>(
+        queue: DispatchQueue? = nil,
+        completionHandler: @escaping (DataResponse<T>) -> Void)
+        -> Self
+    {
+        let responseSerializer = DataResponseSerializer<T> { request, response, data, error in
+            guard error == nil else { return .failure(BackendError.network(error: error!)) }
+
+            let jsonResponseSerializer = DataRequest.jsonResponseSerializer(options: .allowFragments)
+            let result = jsonResponseSerializer.serializeResponse(request, response, data, nil)
+
+            guard case let .success(jsonObject) = result else {
+                return .failure(BackendError.jsonSerialization(error: result.error!))
+            }
+
+            guard let response = response, let responseObject = T(response: response, representation: jsonObject) else {
+                return .failure(BackendError.objectSerialization(reason: "JSON could not be serialized: \(jsonObject)"))
+            }
+
+            return .success(responseObject)
+        }
+
+        return response(queue: queue, responseSerializer: responseSerializer, completionHandler: completionHandler)
+    }
+}
+```
+
+```swift
+struct User: ResponseObjectSerializable, CustomStringConvertible {
+    let username: String
+    let name: String
+
+    var description: String {
+        return "User: { username: \(username), name: \(name) }"
+    }
+
+    init?(response: HTTPURLResponse, representation: Any) {
+        guard
+            let username = response.url?.lastPathComponent,
+            let representation = representation as? [String: Any],
+            let name = representation["name"] as? String
+        else { return nil }
+
+        self.username = username
+        self.name = name
+    }
+}
+```
+
+```swift
+Alamofire.request("https://example.com/users/mattt").responseObject { (response: DataResponse<User>) in
+    debugPrint(response)
+
+    if let user = response.result.value {
+        print("User: { username: \(user.username), name: \(user.name) }")
+    }
+}
+```
+
+相同的方法也可以用于处理终端返回的对象集合：
+
+```swift
+protocol ResponseCollectionSerializable {
+    static func collection(from response: HTTPURLResponse, withRepresentation representation: Any) -> [Self]
+}
+
+extension ResponseCollectionSerializable where Self: ResponseObjectSerializable {
+    static func collection(from response: HTTPURLResponse, withRepresentation representation: Any) -> [Self] {
+        var collection: [Self] = []
+
+        if let representation = representation as? [[String: Any]] {
+            for itemRepresentation in representation {
+                if let item = Self(response: response, representation: itemRepresentation) {
+                    collection.append(item)
+                }
+            }
+        }
+
+        return collection
+    }
+}
+```
+
+```swift
+extension DataRequest {
+    @discardableResult
+    func responseCollection<T: ResponseCollectionSerializable>(
+        queue: DispatchQueue? = nil,
+        completionHandler: @escaping (DataResponse<[T]>) -> Void) -> Self
+    {
+        let responseSerializer = DataResponseSerializer<[T]> { request, response, data, error in
+            guard error == nil else { return .failure(BackendError.network(error: error!)) }
+
+            let jsonSerializer = DataRequest.jsonResponseSerializer(options: .allowFragments)
+            let result = jsonSerializer.serializeResponse(request, response, data, nil)
+
+            guard case let .success(jsonObject) = result else {
+                return .failure(BackendError.jsonSerialization(error: result.error!))
+            }
+
+            guard let response = response else {
+                let reason = "Response collection could not be serialized due to nil response."
+                return .failure(BackendError.objectSerialization(reason: reason))
+            }
+
+            return .success(T.collection(from: response, withRepresentation: jsonObject))
+        }
+
+        return response(responseSerializer: responseSerializer, completionHandler: completionHandler)
+    }
+}
+```
+
+```swift
+struct User: ResponseObjectSerializable, ResponseCollectionSerializable, CustomStringConvertible {
+    let username: String
+    let name: String
+
+    var description: String {
+        return "User: { username: \(username), name: \(name) }"
+    }
+
+    init?(response: HTTPURLResponse, representation: Any) {
+        guard
+            let username = response.url?.lastPathComponent,
+            let representation = representation as? [String: Any],
+            let name = representation["name"] as? String
+        else { return nil }
+
+        self.username = username
+        self.name = name
+    }
+}
+```
+
+```swift
+Alamofire.request("https://example.com/users").responseCollection { (response: DataResponse<[User]>) in
+    debugPrint(response)
+
+    if let users = response.result.value {
+        users.forEach { print("- \($0)") }
+    }
+}
+```
+
 #### 请求适配器
 
 ### 安全性
