@@ -629,6 +629,77 @@ Alamofire.upload(fileURL, to: "https://httpbin.org/post")
     }
 ```
 
+### Statistical Metrics
+
+#### Timeline
+
+Alamofire collects timings throughout the lifecycle of a `Request` and creates a `Timeline` object exposed as a property on all response types.
+
+```swift
+Alamofire.request("https://httpbin.org/get").responseJSON { response in
+    print(response.timeline)
+}
+```
+
+The above reports the following `Timeline` info:
+
+- `Latency`: 0.428 seconds
+- `Request Duration`: 0.428 seconds
+- `Serialization Duration`: 0.001 seconds
+- `Total Duration`: 0.429 seconds
+
+#### URL Session Task Metrics
+
+In iOS and tvOS 10 and macOS 10.12, Apple introduced the new [URLSessionTaskMetrics](https://developer.apple.com/reference/foundation/urlsessiontaskmetrics) APIs. The task metrics encapsulate some fantastic statistical information about the request and response execution. The API is very similar to the `Timeline`, but provides many more statistics that Alamofire doesn't have access to compute. The metrics can be accessed through any response type.
+
+```swift
+Alamofire.request("https://httpbin.org/get").responseJSON { response in
+  print(response.metrics)
+}
+```
+
+注意，这些接口仅在 iOS，tvOS 10 和 macOS 10.12 三个平台上可用。因此，取决于您的部署环境，您需要做以下检测：
+
+```swift
+Alamofire.request("https://httpbin.org/get").responseJSON { response in
+    if #available(iOS 10.0. *) {
+    print(response.metrics)
+    }
+}
+```
+
+### cURL 命令输出
+
+不好的调试平台会让工作变得很麻烦. 幸好, Alamofire `Request` 对象实现了 `CustomStringConvertible` 和 `CustomDebugStringConvertible` 协议，这为我们提供了很好的调试工具。
+
+#### CustomStringConvertible
+
+```swift
+let request = Alamofire.request("https://httpbin.org/ip")
+
+print(request)
+// GET https://httpbin.org/ip (200)
+```
+
+#### CustomDebugStringConvertible
+
+```swift
+let request = Alamofire.request("https://httpbin.org/get", parameters: ["foo": "bar"])
+debugPrint(request)
+```
+
+输出:
+
+```bash
+$ curl -i \
+  -H "User-Agent: Alamofire/4.0.0" \
+  -H "Accept-Encoding: gzip;q=1.0, compress;q=0.5" \
+  -H "Accept-Language: en;q=1.0,fr;q=0.9,de;q=0.8,zh-Hans;q=0.7,zh-Hant;q=0.6,ja;q=0.5" \
+  "https://httpbin.org/get?foo=bar"
+```
+
+---
+
 ## 高级用法
 
 Alamofire 建立在 `URLSession` 和 URL 加载系统上。为了更好的使用该框架，强烈建议要非常熟悉底层网络栈的相关概念
