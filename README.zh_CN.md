@@ -17,7 +17,7 @@ Alamofire 是 Swift 语言编写的 HTTP 网络库。
 - [安装](#安装)
 - [用法](#用法)
     - **简介 -** [发起请求](#发起请求), [响应回调](#响应回调), [响应验证](#响应验证), [响应缓存](#响应缓存)
-        - **HTTP -** [HTTP 方法](# HTTP 方法), [请求参数编码](#请求参数编码), [HTTP Headers](#http-headers), [认证](#认证)
+        - **HTTP -** [HTTP 方法](#HTTP 方法), [请求参数编码](#请求参数编码), [HTTP Headers](#http-headers), [认证](#认证)
         - **大量数据 -** [下载数据到文件](#下载数据到文件), [上传数据到服务器](#上传数据到服务器)
         - **工具 -** [指标统计](#指标统计), [cURL 命令输出](#cURL 命令输出)
     - [高级用法](#高级用法)
@@ -124,7 +124,7 @@ import Alamofire
 Alamofire.request("https://httpbin.org/get")
 ```
 
-### 处理响应
+### 响应回调
 
 处理请求的响应只需在 `Request` 后面加上处理响应的回调。
 
@@ -310,13 +310,13 @@ Alamofire.request("https://httpbin.org/get").validate().responseJSON { response 
 }
 ```
 
-### 缓存响应
+### 响应缓存
 
 响应的缓存操作由系统级框架 [`URLCache`](https://developer.apple.com/reference/foundation/urlcache) 完成。其同时提供了内存，硬盘两种缓存方式并且用户可以设置可缓存的大小。
 
 > Alamofire 默认会使用共享的 `URLCache`。查看 [Session Manager Configurations](#session-manager) 进行自定义。
 
-### HTTP Methods
+### HTTP 方法
 
 `HTTPMethod` 枚举出了 [RFC 7231 §4.3](http://tools.ietf.org/html/rfc7231#section-4.3) 中定义的 HTTP 方法：
 
@@ -346,7 +346,7 @@ Alamofire.request("https://httpbin.org/delete", method: .delete)
 
 > `Alamofire.request` 的 method 参数默认是 `.get`。
 
-### 参数编码
+### 请求参数编码
 
 Alamofire 默认提供了三种参数编码方式，包括 `URL`,`JSON`,`PropertyList`。同时也支持遵循了 `ParameterEncoding` 协议的编码方式。
 
