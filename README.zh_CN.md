@@ -24,7 +24,7 @@ Alamofire 是 Swift 语言编写的 HTTP 网络库。
         - **URL 会话 -** [会话管理](#会话管理), [会话代理](#会话代理), [请求](#请求)
         - **请求路由 -** [请求路由](#请求路由), [Adapting and Retrying Requests](#adapting-and-retrying-requests)
         - **模型对象 -** [自定义响应序列化器](#自定义响应序列化器)
-        - **网络连接 -** [安全](#安全), [网络可用性](#网络可用性)
+        - **网络连接 -** [安全性](#安全), [网络可用性](#网络可用性)
 - [Open Radars](#open-radars)
 - [FAQ](#faq)
 - [致谢](#致谢)
@@ -932,7 +932,128 @@ enum Router: URLRequestConvertible {
 Alamofire.request(Router.readUser("mattt")) // GET https://example.com/users/mattt
 ```
 
+### Adapting and Retrying Requests
+
+当今的很多 web 服务都可以通过授权系统进行访问。其中最常用的是 OAuth。OAuth 会生成一个访问令牌来授权你的应用访问权限内的 web 服务。创建令牌可能会很麻烦，令牌过期需要考虑很多线程安全的问题，这会让情况变得更复杂。
+
+`RequestAdapter` 和 `RequestRetrier` 协议让创建线程安全的授权系统变得容易。
+
+#### RequestAdapter
+
+`RequestAdapter` 协议允许 `SessionManager` 在创建 `Request` 前为 `Request` 做额外的检查和适配工作。比较常用的应用场景是为请求拼接`授权`参数。
+
+```swift
+class AccessTokenAdapter: RequestAdapter {
+  private let accessToken: String
+
+  init(accessToken: String) {
+    self.accessToken = accessToken
+  }
+
+  func adapt(_ urlRequest: URLRequest) throws -> URLRequest {
+      var urlRequest = urlRequest
+
+      if urlRequest.urlString.hasPrefix("https://httpbin.org") {
+        urlRequest.setValue("Bearer " + accessToken, forHTTPHeaderField: "Authorization")
+      }
+
+      return urlRequest
+  }
+}
+```
+
+```swift
+let sessionManager = SessionManager()
+sessionManager.adapter = AccessTokenAdapter(accessToken: "1234")
+
+sessionManager.request("https://httpbin.org/get")
+```
+
+`RequestRetrier` 协议
+
+### 自定义响应序列化器
+
+#### 错误处理
+
+#### 请求适配器
+
+### 安全性
+
+在与 web 服务器交互传输敏感数据时应该使用安全的 HTTPS 连接。默认情况下，Alamofire 会使用苹果提供的 Security 框架对服务器提供的证书串进行验证。这样仅仅能确保服务器端证书是否有效，并不能防止中间人攻击 man-in-the-middle(MITM) 或其他潜在的漏洞。为了降低遭受中间人攻击的可能性，应用在处理敏感用户的数据或金融信息时应该配合使用证书或 `ServerTrustPolicy` 提供的公钥锁定
+
+#### ServerTrustPolicy
+
+#### Server Trust Policy Manager
+
+##### 继承 Server Trust Policy Manager
+
+#### 验证主机
+
+##### 验证证书串
+
+#### App Transport Security
+
+```xml
+<dict>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSExceptionDomains</key>
+    <dict>
+      <key>example.com</key>
+      <dict>
+        <key>NSExceptionAllowsInsecureHTTPLoads</key>
+        <true/>
+        <key>NSExceptionRequiresForwardSecrecy</key>
+        <false/>
+        <key>NSIncludesSubdomains</key>
+        <true/>
+        <!-- Optional: Specify minimum TLS version -->
+        <key>NSTemporaryExceptionMinimumTLSVersion</key>
+        <string>TLSv1.2</string>
+      </dict>
+    </dict>
+  </dict>
+</dict>
+```
+
+### 网络可用性
+
+`NetworkReachabilityManager` 可用于监听 WWAN 和 WiFi 网络到指定主机或 IP 地址的连接状态。
+
+
+```swift
+let manager = NetworkReachabilityManager(host: "www.apple.com")
+
+manager?.listener = { status in
+    print("Network Status Changed: \(status)")
+}
+
+manager?.startListening()
+```
+
+> 请确保对 `网络状态监听对象` 有强引用，否则不会监听到任何网络状态。
+
+在监听网络状态时需要注意以下几点：
+
+- **不要**根据网络状态来决定是否发送网络请求。
+    - **只管**发送就行
+- 当网络恢复连接，对失败的网络请求重新发起请求。
+    - 尽管重新发起请求仍有可能失败，但您仍应该尝试。
+- 网络状态有助于分析出请求失败原因。
+    - 如果网络请求失败，提示用户网络处于离线状态要比更具体的错误信息比如"请求超时"等更友好。
+
+> 更多信息请参考 [WWDC 2012 Session 706, "Networking Best Practices"](https://developer.apple.com/videos/play/wwdc2012-706/) for more info.
+
+---
+
 ## Open Radars
+
+The following radars have some effect on the current implementation of Alamofire.
+
+- [`rdar://21349340`](http://www.openradar.me/radar?id=5517037090635776) - Compiler throwing warning due to toll-free bridging issue in test case
+- [`rdar://26761490`](http://www.openradar.me/radar?id=5010235949318144) - Swift string interpolation causing memory leak with common usage
+- `rdar://26870455` - Background URL Session Configurations do not work in the simulator
+- `rdar://26849668` - Some URLProtocol APIs do not properly handle `URLRequest`
 
 ## FAQ
 
