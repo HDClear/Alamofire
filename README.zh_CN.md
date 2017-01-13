@@ -969,7 +969,148 @@ sessionManager.adapter = AccessTokenAdapter(accessToken: "1234")
 sessionManager.request("https://httpbin.org/get")
 ```
 
-`RequestRetrier` 协议
+#### RequestRetrier
+
+`RequestRetrier` 协议允许网络请求发生错误时重新发起请求。通过同时实现 `RequestAdapter` 和 `RequestRetrier` 协议，您可以为 OAuth1，OAuth2，基本授权，重试策略创建一个证书刷新系统。您能实现的功能不局限于此。下面的例子展示了 OAuth2 令牌的刷新流程。
+
+> **免责声明：** 这**不是**一个全局的 `OAuth2` 解决方案。下面的代码仅作为简单示例展示了如何通过 `RequestAdapter` 和 `RequestRetrier` 协议来实现线程安全的刷新系统。
+
+> 重申，**不要拷贝**下面的示例代码到您的产品中。该代码片段仅能作为示例。每一个授权系统应该基于平台和授权类型做相应的修改。
+
+```swift
+class OAuth2Handler: RequestAdapter, RequestRetrier {
+    private typealias RefreshCompletion = (_ succeeded: Bool, _ accessToken: String?, _ refreshToken: String?) -> Void
+
+    private let sessionManager: SessionManager = {
+        let configuration = URLSessionConfiguration.default
+        configuration.httpAdditionalHeaders = SessionManager.defaultHTTPHeaders
+
+        return SessionManager(configuration: configuration)
+    }()
+
+    private let lock = NSLock()
+
+    private var clientID: String
+    private var baseURLString: String
+    private var accessToken: String
+    private var refreshToken: String
+
+    private var isRefreshing = false
+    private var requestsToRetry: [RequestRetryCompletion] = []
+
+    // MARK: - Initialization
+
+    public init(clientID: String, baseURLString: String, accessToken: String, refreshToken: String) {
+        self.clientID = clientID
+        self.baseURLString = baseURLString
+        self.accessToken = accessToken
+        self.refreshToken = refreshToken
+    }
+
+    // MARK: - RequestAdapter
+
+    func adapt(_ urlRequest: URLRequest) throws -> URLRequest {
+        if let url = urlRequest.url, url.urlString.hasPrefix(baseURLString) {
+            var urlRequest = urlRequest
+            urlRequest.setValue("Bearer " + accessToken, forHTTPHeaderField: "Authorization")
+            return urlRequest
+        }
+
+        return urlRequest
+    }
+
+    // MARK: - RequestRetrier
+
+    func should(_ manager: SessionManager, retry request: Request, with error: Error, completion: @escaping RequestRetryCompletion) {
+        lock.lock() ; defer { lock.unlock() }
+
+        if let response = request.task.response as? HTTPURLResponse, response.statusCode == 401 {
+            requestsToRetry.append(completion)
+
+            if !isRefreshing {
+                refreshTokens { [weak self] succeeded, accessToken, refreshToken in
+                    guard let strongSelf = self else { return }
+
+                    strongSelf.lock.lock() ; defer { strongSelf.lock.unlock() }
+
+                    if let accessToken = accessToken, let refreshToken = refreshToken {
+                        strongSelf.accessToken = accessToken
+                        strongSelf.refreshToken = refreshToken
+                    }
+
+                    strongSelf.requestsToRetry.forEach { $0(succeeded, 0.0) }
+                    strongSelf.requestsToRetry.removeAll()
+                }
+            }
+        } else {
+            completion(false, 0.0)
+        }
+    }
+
+    // MARK: - Private - Refresh Tokens
+
+    private func refreshTokens(completion: @escaping RefreshCompletion) {
+        guard !isRefreshing else { return }
+
+        isRefreshing = true
+
+        let urlString = "\(baseURLString)/oauth2/token"
+
+        let parameters: [String: Any] = [
+            "access_token": accessToken,
+            "refresh_token": refreshToken,
+            "client_id": clientID,
+            "grant_type": "refresh_token"
+        ]
+
+        sessionManager.request(urlString, method: .post, parameters: parameters, encoding: JSONEncoding.default)
+            .responseJSON { [weak self] response in
+                guard let strongSelf = self else { return }
+
+                if 
+                    let json = response.result.value as? [String: Any], 
+                    let accessToken = json["access_token"] as? String, 
+                    let refreshToken = json["refresh_token"] as? String 
+                {
+                    completion(true, accessToken, refreshToken)
+                } else {
+                    completion(false, nil, nil)
+                }
+
+                strongSelf.isRefreshing = false
+            }
+    }
+}
+```
+
+```swift
+let baseURLString = "https://some.domain-behind-oauth2.com"
+
+let oauthHandler = OAuth2Handler(
+    clientID: "12345678",
+    baseURLString: baseURLString,
+    accessToken: "abcd1234",
+    refreshToken: "ef56789a"
+)
+
+let sessionManager = SessionManager()
+sessionManager.adapter = oauthHandler
+sessionManager.retrier = oauthHandler
+
+let urlString = "\(baseURLString)/some/endpoint"
+
+sessionManager.request(urlString).validate().responseJSON { response in
+    debugPrint(response)
+}
+```
+
+`SessionManager` 的 `adapter` 和 `retrier` 被设置为 `OAuth2Handler`后，当令牌失效时，便会自动刷新令牌并尝试按失败的顺序重新发起请求。
+
+> 如果您想按创建网络请求的顺序重新发起请求，您可以通过网络请求任务的 id 进行排序。
+
+该示例仅检查了响应的 `401` 状态码，作为检测失效令牌的例子这已经足够。O在实际产品中，您应该还要检测响应头中的 `reaml` 和 `www-authenticate` 等字段。
+
+还需要注意的是该授权系统可以在多个会话管理对象间共享。比如，您可以为同一个 web 服务集同时使用 `default` 和 `ephemeral` 会话配置。上面的例子允许 `oauthHandler` 实例对象在多个会话管理对象间共享并管理各自的刷新流程。
 
 ### 自定义响应序列化器
 
